@@ -86,8 +86,9 @@ if mode is "train":
             feed = {input_data: usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length),
                     targets: usedata[1+index:1+index+seq_length*batch_size].reshape(batch_size, seq_length),
                     initial_state:state}
-            _, state, lossval, thoughts= sess.run([train_op, final_state, loss, preds], feed)
+            _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
             sessions.set_postfix(loss=float(lossval))
+            writer.add_summary(summary, a * num_batches + b)
             if (a * num_batches + b) % 100 == 0:
                 saver.save(sess, "save/ckpt",
                            global_step=a * num_batches + b)
