@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import tensorflow as tf
-import numpy as np
-from tensorflow.contrib import rnn
-import tqdm
+#import tensorflow as tf
+#import numpy as np
+#from tensorflow.contrib import rnn
+#import tqdm
 
 nodes_per_layer = 60
 layers = 2
@@ -38,9 +38,14 @@ for x in junk:
     _data = _data.replace(x,junk[x])
 
 usedata = []
+counts = {}
 for xx in _data:
-    if xx not in encoder:
-        encoder[xx] = len(encoder)
+    if xx not in counts:
+        counts[xx] = 0
+    counts[xx] += 1
+count_pairs = sorted(counts.items(), key=lambda x: -x[1])
+encoder = {y[0]:x for x,y in enumerate(count_pairs)}
+for xx in _data:
     usedata.append(encoder[xx])
 usedata = np.array(usedata)
 
@@ -53,7 +58,7 @@ print(train_batches[0], "\n", answer_batches[0])
 def data_iterator():
     index=0
     while True:
-        if (index +1) > len(train_batches):
+        if (index +1) >= len(train_batches):
             index=0
         yield index
         index += 1
