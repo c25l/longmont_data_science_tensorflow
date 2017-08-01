@@ -89,21 +89,18 @@ embed = tf.get_variable("embed", [corpus_symbols, nodes_per_layer])
 inputs = tf.nn.embedding_lookup(embed, input_data)
 
 #dynamic rnn wrapper for cells
-gru_outputs, final_state = tf.nn.dynamic_rnn(cell, inputs, dtype=tf.float32)
+rnn_outputs, final_state = tf.nn.static_rnn(cell, inputs, dtype=tf.float32)
 
 
 # and with this, let's deduce the outputs as well
-preds = tf.layers.dense(gru_outputs, corpus_symbols, name = "recombine", activation = None)
+preds = tf.layers.dense(rnn_outputs, corpus_symbols, name = "recombine", activation = None)
 probs = tf.sigmoid(preds)
 usetargets = tf.one_hot(targets, corpus_symbols)
 
 # need to define how wrong we are, and what to do about it.
 loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=preds, labels=usetargets))
 optimizer = tf.train.RMSPropOptimizer(lr)
-gvs = optimizer.compute_gradients(loss)
-capped_gvs, _ = tf.clip_by_global_norm([grad for grad, _ in gvs],grad_clip)
-train_op = optimizer.apply_gradients(zip(capped_gvs, [var for _, var in gvs]))
-
+train_op = optimizer.minimize(loss)
 
 def sample():
     state = sess.run(sampling_initial_state)
