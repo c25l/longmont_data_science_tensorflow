@@ -1,141 +1,114 @@
 #!/usr/bin/env python3
-#import tensorflow as tf
-#import numpy as np
-#from tensorflow.contrib import rnn
-#import tqdm
+# * Imports
+import tensorflow as tf
+import numpy as np
+from tensorflow.contrib import rnn
+import tqdm
+import argparse
 
-nodes_per_layer = 60
+# * Defaults
+nodes_per_layer = 100
 layers = 2
-batch_size = 80
-dropout_keep = 0.95
-num_batches =1000
+batch_size = 40
+num_batches =501
 num_epochs=50
-seq_length = 15
-learn_rate = 0.002
-decay_rate = 0.05
-grad_clip = 5
-corpus_symbols=0 ## Gets reset later on by the actual data.
-samples = 2000
+seq_length = 75
+learn_rate = 0.0005
 
+# * Arguments
+parser = argparse.ArgumentParser(
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('--mode', type=str, default='train')
+args = parser.parse_args()
 
-# ### Data Work
+mode = args.mode
+if mode is not "train":
+    seq_length=1
+    batch_size=1
 
+# * Data Work
 encoder = {}
-decoder = {}
 _data = open("shakespeare.txt",'r').read().lower()
-junk = {";":",",
-       "-":" ",
-       "3":"",
-       "'":"",
-        "$":"",
-        "&":"",
-        "!":".",
-       ":":"",
-       "\n":" ",
-       ",":"."}
-
-for x in junk:
-    _data = _data.replace(x,junk[x])
-
 usedata = []
-counts = {}
 for xx in _data:
-    if xx not in counts:
-        counts[xx] = 0
-    counts[xx] += 1
-count_pairs = sorted(counts.items(), key=lambda x: -x[1])
-encoder = {y[0]:x for x,y in enumerate(count_pairs)}
-for xx in _data:
+    if xx not in encoder:
+        encoder[xx] = len(encoder)
     usedata.append(encoder[xx])
 usedata = np.array(usedata)
-
-train_batches = [usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length)
-                 for index in range(0,len(usedata)//(seq_length*batch_size))]
-answer_batches = [usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length)
-                  for index in range(1,len(usedata)//(seq_length*batch_size))]
-
-print(train_batches[0], "\n", answer_batches[0])
-def data_iterator():
-    index=0
-    while True:
-        if (index +1) >= len(train_batches):
-            index=0
-        yield index
-        index += 1
 decoder = {encoder[x]:x for x in encoder}
 corpus_symbols=len(encoder)
 
-# ### Network design
-
-tf.reset_default_graph() #This resets the graph on cell run, otherwise this cell is run-once.
+# * Network design
 sess =  tf.Session()
-#Then we'll build a deep rnn's cells, with dropout
-cells = [rnn.GRUCell(nodes_per_layer) for _ in  range(layers)]
-dropout = [rnn.DropoutWrapper(cell, dropout_keep) for cell in cells]
-cell = rnn.MultiRNNCell(dropout, state_is_tuple=True)
-
+cells = [rnn.GRUCell(nodes_per_layer,
+                     bias_initializer=tf.constant_initializer(-1.0))
+         for _ in  range(layers)]
+cell = rnn.MultiRNNCell(cells, state_is_tuple=True)
 
 #Define our input and output data
 input_data = tf.placeholder(tf.int32, [None, None], name="input_data")
 targets = tf.placeholder(tf.int32, [None, None], name = "targets")
+inputs = tf.one_hot(input_data,corpus_symbols, axis=-1)
 initial_state = cell.zero_state(batch_size, tf.float32)
-sampling_initial_state = cell.zero_state(1, tf.float32)
-lr = tf.get_variable("lr", [],dtype=tf.float32,
-                             initializer = tf.constant_initializer(learn_rate),
-                             trainable=False)
-
-#First, Let's do an embedding into the network space
-embed = tf.get_variable("embed", [corpus_symbols, nodes_per_layer])
-inputs = tf.nn.embedding_lookup(embed, input_data)
 
 #dynamic rnn wrapper for cells
-rnn_outputs, final_state = tf.nn.static_rnn(cell, inputs, dtype=tf.float32)
-
+rnn_outputs, final_state = tf.nn.dynamic_rnn(cell, inputs, dtype=tf.float32)
 
 # and with this, let's deduce the outputs as well
 preds = tf.layers.dense(rnn_outputs, corpus_symbols, name = "recombine", activation = None)
 probs = tf.sigmoid(preds)
-usetargets = tf.one_hot(targets, corpus_symbols)
 
 # need to define how wrong we are, and what to do about it.
-loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=preds, labels=usetargets))
-optimizer = tf.train.RMSPropOptimizer(lr)
-train_op = optimizer.minimize(loss)
+loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=preds, labels=targets))
+train_op = tf.train.AdamOptimizer(learn_rate).minimize(loss)
 
-def sample():
-    state = sess.run(sampling_initial_state)
-    nextitem = np.array([encoder[x] for x in["t","h","e", " "]]).reshape(1,-1)
-    output = ""
-    for _ in range(samples):
-        feed = {input_data: nextitem.reshape(1,-1), targets: nextitem.reshape(1,-1)}
-        for i, _x in enumerate(sampling_initial_state):
-            feed[_x] = state[i]
-        [predicted, state] = sess.run([probs, final_state], feed)
-        proto = predicted[:,-1,:]
-        proto = np.cumsum(proto)
-        nextitem = np.searchsorted(proto,np.random.rand(1)*proto[-1])
-        output = output+decoder[nextitem[0]]
-    return output
 
-# // Training
+# * Tensorboard stuff
+tf.summary.histogram('preds', preds)
+tf.summary.histogram('loss', loss)
 
-sess.run(tf.global_variables_initializer())
-data = data_iterator()
-try:
-    epochs = tqdm.trange(num_epochs, postfix={"lr":learn_rate})
-    for a in epochs:
+
+# * Training
+if mode is "train":
+    # **  Send stuff to tensorboard
+    summaries = tf.summary.merge_all()
+    writer = tf.summary.FileWriter("logs")
+    writer.add_graph(sess.graph)
+    sess.run(tf.global_variables_initializer())
+    saver = tf.train.Saver(tf.global_variables())
+
+    index=-1
+    for a in tqdm.trange(num_epochs):
         state = sess.run(initial_state)
         sessions = tqdm.trange(num_batches,postfix={"loss":0.})
         for b in sessions:
-            index= next(data)
-            feed = {input_data: train_batches[index], targets: answer_batches[index]}
-            for i, _x in enumerate(initial_state):
-                feed[_x] = state[i]
-            _, state, lossval= sess.run([train_op, final_state, loss], feed)
+            index = (index+1) % (len(usedata)-1-seq_length*batch_size)
+            feed = {input_data: usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length),
+                    targets: usedata[1+index:1+index+seq_length*batch_size].reshape(batch_size, seq_length),
+                    initial_state:state}
+            _, state, lossval, thoughts= sess.run([train_op, final_state, loss, preds], feed)
             sessions.set_postfix(loss=float(lossval))
-        lrval = sess.run(tf.assign(lr, lr*(1-decay_rate)))
-        epochs.set_postfix(lr=float(lrval))
-        output = sample()
+            if (a * num_batches + b) % 100 == 0:
+                saver.save(sess, "save/ckpt",
+                           global_step=a * num_batches + b)
+
+        output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)])
         print("sample output: \"{}\"".format(output))
-except KeyboardInterrupt:
-    print("sample output: \"{}\"".format(sample()))
+# * Sampling
+else:
+    sess = tf.Session(config=tf.ConfigProto(device_count = {'GPU':0}))
+    sess.run(tf.global_variables_initializer())
+    saver = tf.train.Saver(tf.global_variables())
+    ckpt = tf.train.get_checkpoint_state("save")
+    saver.restore(sess, ckpt.model_checkpoint_path)
+    state = sess.run(initial_state)
+    x = np.array([[encoder[" "]]])
+    trajectory = []
+    for xx in range(2000):
+        feed = {input_data:x, initial_state:state}
+        [prob,state] = sess.run([probs,final_state], feed)
+        _prob = np.cumsum(prob[0,0]*prob[0,0])
+        sample = np.searchsorted(_prob, np.random.rand(1)*_prob[-1])[0]
+        x=np.array([[sample]])
+        trajectory.append(decoder[sample])
+    print("".join(trajectory))
