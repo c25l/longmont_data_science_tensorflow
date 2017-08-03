@@ -75,43 +75,44 @@ tf.summary.scalar('loss', loss)
 # * Training
 if not args.sample:
     # **  Send stuff to tensorboard
-    sess =  tf.Session()
-    summaries = tf.summary.merge_all()
-    writer = tf.summary.FileWriter("logs")
-    writer.add_graph(sess.graph)
-    sess.run(tf.global_variables_initializer())
-    saver = tf.train.Saver(tf.global_variables())
-    state = sess.run(initial_state)
-    sessions = tqdm.trange(num_batches,postfix={"loss":0.})
-    for b in sessions:
-        index = b % (len(usedata)-1-seq_length*batch_size)
-        feed = {input_data: usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length),
-                targets: usedata[1+index:1+index+seq_length*batch_size].reshape(batch_size, seq_length),
-                initial_state:state}
-        _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
-        sessions.set_postfix(loss=float(lossval))
-        writer.add_summary(summary, b)
-        if b % (num_batches//20) == 0:
-            saver.save(sess, "save/ckpt", global_step= b)
-            output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)])
-            print("sample output: \"{}\"".format(output))
-            state = sess.run(initial_state)
+    with tf.Session() as sess:
+        summaries = tf.summary.merge_all()
+        writer = tf.summary.FileWriter("logs")
+        writer.add_graph(sess.graph)
+        sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver(tf.all_variables())
+        state = sess.run(initial_state)
+        sessions = tqdm.trange(num_batches,postfix={"loss":0.})
+        for b in sessions:
+            index = b % (len(usedata)-1-seq_length*batch_size)
+            feed = {input_data: usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length),
+                    targets: usedata[1+index:1+index+seq_length*batch_size].reshape(batch_size, seq_length),
+                    initial_state:state}
+            _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
+            sessions.set_postfix(loss=float(lossval))
+            writer.add_summary(summary, b)
+            if (b % (num_batches//20) == 0) or (b == num_batches-1):
+                saver.save(sess, "save/model.ckpt", global_step= b)
+                output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)])
+                print("sample output: \"{}\"".format(output))
+                state = sess.run(initial_state)
 
 # * Sampling
 else:
-    sess = tf.Session(config=tf.ConfigProto(device_count = {'GPU':0}))
-    sess.run(tf.global_variables_initializer())
-    saver = tf.train.Saver(tf.global_variables())
-    ckpt = tf.train.get_checkpoint_state("save")
-    saver.restore(sess, ckpt.model_checkpoint_path)
-    state = sess.run(initial_state)
-    x = np.array([[encoder[x] for x in "northumberland "]])
-    trajectory = []
-    for xx in range(1000):
-        feed = {input_data:x, initial_state:state}
-        [prob, state] = sess.run([probs,final_state], feed)
-        _prob = np.cumsum(prob[0,0])
-        sample = np.searchsorted(_prob, np.random.rand(1))[0]
-        x=np.array([[sample]])
-        trajectory.append(decoder[sample])
-    print("".join(trajectory))
+    with tf.Session(config=tf.ConfigProto(device_count = {'GPU':0})) as sess:
+        sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver()
+        saver.restore(sess, tf.train.latest_checkpoint("./save"))
+        state = sess.run(cell.zero_state(1,tf.float32))
+        for ind in range(800,1000):
+            feed = {input_data:np.array([[usedata[ind]]]),
+                    targets:np.array([[usedata[ind+1]]]),
+                    initial_state:state}
+            [state, myloss] = sess.run([final_state, loss], feed)
+        trajectory = []
+        for xx in range(1000):
+            [prob, state] = sess.run([probs,final_state], feed)
+            sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
+            x=np.array([[sample]])
+            trajectory.append(decoder[sample])
+        print("".join(trajectory))
