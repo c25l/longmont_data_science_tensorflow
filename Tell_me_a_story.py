@@ -21,7 +21,7 @@ encoder = {}
 _data = open("shakespeare.txt",'r').read().lower()
 usedata = []
 ## It's not really fair to the network to expect it to wield every symbol.
-crud = [[r"[\d$:,&()\]\[|\t']",""],[r"[-\n ]+"," "],[r"[?!;]","."]]
+crud = [[r"[\d$:,&()\]\[|']",""],[r"[-\n\t ]+"," "],[r"[?!;]","."]]
 for xx,yy in crud:
         _data =re.sub(xx,yy, _data)
 for xx in _data[:seq_length*num_batches*2+3]:
@@ -81,7 +81,7 @@ with tf.Session() as sess:
         _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
         sessions.set_postfix(loss=float(lossval))
         writer.add_summary(summary, b)
-        if (b % (num_batches//20) == 0) or (b == num_batches-1):
+        if (b % (num_batches//10) == 0) or (b == num_batches-1):
             output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)[:out_length]])
             print("sample output : \"{}\"\n".format(output))
             x = np.tile(encoder[" "], (batch_size,1))
