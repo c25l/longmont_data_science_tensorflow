@@ -1,9 +1,7 @@
 # Tensorflow examples for the longmont data science meetup
 Contained in this repository are a data file and an example in tensorflow that puts this data to use. The data is a lot of text, all shakespeare, chosen for its recognizability and relative lack of controversy. The use to which it is put is contained in `Tell_me_a_story.py` which will learn the shakespearean text as well as outputting a set of predictions and generated text every so often. The generated text can, if the model is run big enough and long enough, reach a kind of understandability, but the model will need modification. Consider the `char-rnn-tensorflow` model referenced below to get this level of performance without any additional work.
 
-There are two subdirectories included, one called `logs` which contains outputs for tensorboard information. If you wish, try `tensorboard --logdir logs/` from the base directory of the project while training and your network and traning information will be available.
-
-The other subdirectory is called `save` which will contain the checkpoints your model is generating for use later.
+There is a subdirectory included, called `logs` which contains outputs for tensorboard information. If you wish, try `tensorboard --logdir logs/` from the base directory of the project while training and your network and traning information will be available.
 
 ## tensorflow example
 This example has relatively few bells and whsitles, opting instead to be extremely compact, complete, and a solid base for your own personal experimentation. It mirrors a subset of the performance of this [char-rnn-tensorflow model](https://github.com/sherjilozair/char-rnn-tensorflow) without either being an exact copy of the functionality or the construction.
@@ -16,6 +14,7 @@ This example was chosen because, broadly, everyone is familiar with text and wha
 2. Change out the training set for your favorite text and see what it comes up with. I tried this with my own journals at one point. It really did capture my tone, but in a way that was more eerie than fun.
 3. Implement a different RNN type, try using GRU.
 3. Add dropout to prevent overfitting to data
+4. Implement saving and restoring of the model.
 4. Use more data and see the effect of the variety on the accuracy and output.
 4. Implement and see the effect of gradient clipping.
 5. Change the number of layers or the number of nodes and see the effect on training.
