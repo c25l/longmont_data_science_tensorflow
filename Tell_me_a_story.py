@@ -8,11 +8,11 @@ import argparse
 import re
 
 # * Defaults
-nodes_per_layer = 100
+nodes_per_layer = 200
 layers = 2
-batch_size = 40
-num_batches =5000
-seq_length = 25
+batch_size = 60
+num_batches =10000
+seq_length = 55
 out_length = 200
 learning_rate = 1e-3
 
@@ -20,11 +20,11 @@ learning_rate = 1e-3
 encoder = {}
 _data = open("shakespeare.txt",'r').read().lower()
 usedata = []
-## It's not really fair to the network to expect it to wield every symbol.
-crud = [[r"[\d$:,&()\]\[|']",""],[r"[-\n\t ]+"," "],[r"[?!;]","."]]
+## It's not as fun to watch the network try to wield every symbol.
+crud = [[r"[\d$:,&()\]\[|']",""],[r"[-\t ]+"," "],[r"[?!;]","."]]
 for xx,yy in crud:
         _data =re.sub(xx,yy, _data)
-for xx in _data[:seq_length*num_batches*2+3]:
+for xx in _data:
     if xx not in encoder:
         encoder[xx] = len(encoder)
     usedata.append(encoder[xx])
@@ -86,10 +86,17 @@ with tf.Session() as sess:
             print("sample output : \"{}\"\n".format(output))
             x = np.tile(encoder[" "], (batch_size,1))
             trajectory = []
+            usesample = -1
             for xx in range(out_length):
                 feed={input_data:x, initial_state:state}
                 prob, state = sess.run([probs,final_state], feed)
-                sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
+                sample = np.argmax(prob[0,0])
+                if ((sample == encoder[" "]) or (sample==encoder["\n"])
+                    or (usesample>0)or (sample==usesample)):
+                    usesample=-1
+                    sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
+                    if (sample == encoder[" "]) or (sample == encoder["\n"]):
+                        usesample=sample
                 x=np.tile(sample, (batch_size,1))
                 trajectory.append(decoder[sample])
             print("autonomous output: \"{}\"\n".format("".join(trajectory)))
