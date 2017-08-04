@@ -8,22 +8,13 @@ import argparse
 import re
 
 # * Defaults
-nodes_per_layer = 200
+nodes_per_layer = 100
 layers = 2
-batch_size = 20
+batch_size = 40
 num_batches =5000
-seq_length = 55
+seq_length = 25
+out_length = 200
 learning_rate = 1e-3
-
-# * Arguments
-parser = argparse.ArgumentParser()
-parser.add_argument('--sample',dest="sample", action="store_true")
-args = parser.parse_args()
-
-if args.sample:
-    seq_length=1
-    batch_size=1
-    dropout=0
 
 # * Data Work
 encoder = {}
@@ -33,7 +24,7 @@ usedata = []
 crud = [[r"[\d$:,&()\]\[|\t']",""],[r"[-\n ]+"," "],[r"[?!;]","."]]
 for xx,yy in crud:
         _data =re.sub(xx,yy, _data)
-for xx in _data[batch_size*seq_length*20+3:]:
+for xx in _data[:seq_length*num_batches*2+3]:
     if xx not in encoder:
         encoder[xx] = len(encoder)
     usedata.append(encoder[xx])
@@ -73,46 +64,33 @@ tf.summary.scalar('loss', loss)
 
 
 # * Training
-if not args.sample:
-    # **  Send stuff to tensorboard
-    with tf.Session() as sess:
-        summaries = tf.summary.merge_all()
-        writer = tf.summary.FileWriter("logs")
-        writer.add_graph(sess.graph)
-        sess.run(tf.global_variables_initializer())
-        saver = tf.train.Saver(tf.all_variables())
-        state = sess.run(initial_state)
-        sessions = tqdm.trange(num_batches,postfix={"loss":0.})
-        for b in sessions:
-            index = b % (len(usedata)-1-seq_length*batch_size)
-            feed = {input_data: usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length),
-                    targets: usedata[1+index:1+index+seq_length*batch_size].reshape(batch_size, seq_length),
-                    initial_state:state}
-            _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
-            sessions.set_postfix(loss=float(lossval))
-            writer.add_summary(summary, b)
-            if (b % (num_batches//20) == 0) or (b == num_batches-1):
-                saver.save(sess, "save/model.ckpt", global_step= b)
-                output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)])
-                print("sample output: \"{}\"".format(output))
-                state = sess.run(initial_state)
-
-# * Sampling
-else:
-    with tf.Session(config=tf.ConfigProto(device_count = {'GPU':0})) as sess:
-        sess.run(tf.global_variables_initializer())
-        saver = tf.train.Saver()
-        saver.restore(sess, tf.train.latest_checkpoint("./save"))
-        state = sess.run(cell.zero_state(1,tf.float32))
-        for ind in range(800,1000):
-            feed = {input_data:np.array([[usedata[ind]]]),
-                    targets:np.array([[usedata[ind+1]]]),
-                    initial_state:state}
-            [state, myloss] = sess.run([final_state, loss], feed)
-        trajectory = []
-        for xx in range(1000):
-            [prob, state] = sess.run([probs,final_state], feed)
-            sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
-            x=np.array([[sample]])
-            trajectory.append(decoder[sample])
-        print("".join(trajectory))
+# **  Send stuff to tensorboard
+with tf.Session() as sess:
+    summaries = tf.summary.merge_all()
+    writer = tf.summary.FileWriter("logs")
+    writer.add_graph(sess.graph)
+    sess.run(tf.global_variables_initializer())
+    saver = tf.train.Saver()
+    state = sess.run(initial_state)
+    sessions = tqdm.trange(num_batches,postfix={"loss":0.})
+    for b in sessions:
+        index = b % (len(usedata)-1-seq_length*batch_size)
+        feed = {input_data: usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length),
+                targets: usedata[1+index:1+index+seq_length*batch_size].reshape(batch_size, seq_length),
+                initial_state:state}
+        _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
+        sessions.set_postfix(loss=float(lossval))
+        writer.add_summary(summary, b)
+        if (b % (num_batches//20) == 0) or (b == num_batches-1):
+            output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)[:out_length]])
+            print("sample output : \"{}\"\n".format(output))
+            x = np.tile(encoder[" "], (batch_size,1))
+            trajectory = []
+            for xx in range(out_length):
+                feed={input_data:x, initial_state:state}
+                prob, state = sess.run([probs,final_state], feed)
+                sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
+                x=np.tile(sample, (batch_size,1))
+                trajectory.append(decoder[sample])
+            print("autonomous output: \"{}\"\n".format("".join(trajectory)))
+            state = sess.run(initial_state)
