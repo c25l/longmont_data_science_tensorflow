@@ -12,8 +12,8 @@ This example was chosen because, broadly, everyone is familiar with text and wha
 ## Interesting things to try.
 1. Modify the text parser to include different punctuation and see how long it takes to use it in a reasonable way.
 2. Change out the training set for your favorite text and see what it comes up with. I tried this with my own journals at one point. It really did capture my tone, but in a way that was more eerie than fun.
-3. Implement a different RNN type, try using GRU.
-3. Add dropout to prevent overfitting to data
+3. Implement a different RNN type, try using LSTM.
+3. Add dropout to the dense nodes.
 4. Implement saving and restoring of the model.
 4. Use more data and see the effect of the variety on the accuracy and output.
 4. Implement and see the effect of gradient clipping.
