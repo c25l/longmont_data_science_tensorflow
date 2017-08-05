@@ -9,6 +9,7 @@ import re
 
 # * Defaults
 nodes_per_layer = 200
+dropout=0.01
 layers = 2
 batch_size = 60
 num_batches =10000
@@ -34,7 +35,8 @@ corpus_symbols=len(encoder)
 
 # * Network design
 cells = [rnn.BasicLSTMCell(nodes_per_layer) for _ in  range(layers)]
-cell = rnn.MultiRNNCell(cells, state_is_tuple=True)
+dropout = [rnn.DropoutWrapper(x, 1-dropout) for x in cells]
+cell = rnn.MultiRNNCell(dropout, state_is_tuple=True)
 
 #Define our input and output data
 input_data = tf.placeholder(tf.int32, [None, None], name="input_data")
