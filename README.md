@@ -1,4 +1,8 @@
 # Tensorflow examples for the longmont data science meetup
+This repository contains a number of files, including 3 `.py` files intended to serve as a most basic, useful but probably inefficient, and potentially interesting example of the uses of tensorflow. These are `basics.py`, `minima.py` and `Tell_me_a_story.py` respectively. `basics.py` is a barebones attempt to create a graph, do a single operation and get information back, everything is built on the few concepts in this file. `minima.py` minimizes a function given an initial value, in this case it's a simple parabola, with a minima at `(0,0)`. Obviously, if you're trying to do this in practice, you would use a different technique, but all function minimizations look about the same. Try modifying this one to minimize a function of your choice.
+
+
+# Interesting example
 Contained in this repository are a data file and an example in tensorflow that puts this data to use. The data is a lot of text, all shakespeare, chosen for its recognizability and relative lack of controversy. The use to which it is put is contained in `Tell_me_a_story.py` which will learn the shakespearean text as well as outputting a set of predictions and generated text every so often. The generated text can, if the model is run big enough and long enough, reach a kind of understandability, but the model will need modification. Consider the `char-rnn-tensorflow` model referenced below to get this level of performance without any additional work.
 
 There is a subdirectory included, called `logs` which contains outputs for tensorboard information. If you wish, try `tensorboard --logdir logs/` from the base directory of the project while training and your network and traning information will be available.
