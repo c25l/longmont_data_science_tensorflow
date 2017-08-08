@@ -8,17 +8,15 @@ import argparse
 import re
 
 # * Defaults
-nodes_per_layer = 150
+nodes_per_layer = 120
 dropout=0.01
 layers = 2
-batch_size = 100
+batch_size = 30
 num_batches = 5000
-output_every = 1000
-num_epochs = 100
-seq_length = 50
+output_every = 100
+seq_length = 25
 out_length = 200
 learning_rate = 1e-3
-decay_rate = 0.98
 
 # * Data Work
 encoder = {}
@@ -46,7 +44,6 @@ input_data = tf.placeholder(tf.int32, [None, None], name="input_data")
 targets = tf.placeholder(tf.int32, [None, None], name = "targets")
 #Initial state defines the rnn's memory.
 initial_state = cell.zero_state(batch_size, tf.float32)
-learn_rate = tf.Variable(learning_rate, trainable=False)
 
 embed = tf.get_variable("embed", [corpus_symbols,nodes_per_layer])
 inputs = tf.nn.embedding_lookup(embed, input_data)
@@ -61,13 +58,12 @@ probs = tf.nn.softmax(preds)
 # need to define how wrong we are, and what to do about it.
 # This uses softmax cross entropy which is ideal for non-independent outputs.
 loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(logits=preds, labels=targets))
-optimizer = tf.train.RMSPropOptimizer(learn_rate)
+optimizer = tf.train.RMSPropOptimizer(learning_rate)
 train_op = optimizer.minimize(loss)
 
 # * Tensorboard stuff
 tf.summary.histogram('preds', preds)
 tf.summary.scalar('loss', loss)
-
 
 # * Training
 # **  Send stuff to tensorboard
@@ -76,28 +72,26 @@ with tf.Session() as sess:
     writer = tf.summary.FileWriter("logs")
     writer.add_graph(sess.graph)
     sess.run(tf.global_variables_initializer())
-    for e in range(num_epochs):
-        state, _ = sess.run([initial_state,
-                             tf.assign(learn_rate, learning_rate*decay_rate**e)])
-        sessions = tqdm.trange(num_batches,postfix={"loss":0.})
-        for b in sessions:
-            index = b % (len(usedata)-1-seq_length*batch_size)
-            feed = {input_data: usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length),
-                    targets: usedata[1+index:1+index+seq_length*batch_size].reshape(batch_size, seq_length),
-                            initial_state:state}
-            _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
-            sessions.set_postfix(loss=float(lossval))
-            writer.add_summary(summary, b)
-            if (b % output_every == 0) or (b == num_batches-1):
-                output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)[:out_length]])
-                print("sample output : \"{}\"\n".format(output))
-                x = np.tile(encoder[" "], (batch_size,1))
-                trajectory = []
-                for xx in range(out_length):
-                    feed={input_data:x, initial_state:state}
-                    prob, state = sess.run([probs,final_state], feed)
-                    sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
-                    x=np.tile(sample, (batch_size,1))
-                    trajectory.append(decoder[sample])
-                print("autonomous output: \"{}\"\n".format("".join(trajectory)))
-                state = sess.run(initial_state)
+    state = sess.run(initial_state)
+    sessions = tqdm.trange(num_batches,postfix={"loss":0.})
+    for b in sessions:
+        index = b % (len(usedata)-1-seq_length*batch_size)
+        feed = {input_data: usedata[index:index+seq_length*batch_size].reshape(batch_size, seq_length),
+                targets: usedata[1+index:1+index+seq_length*batch_size].reshape(batch_size, seq_length),
+                initial_state:state}
+        _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
+        sessions.set_postfix(loss=float(lossval))
+        writer.add_summary(summary, b)
+        if (b % output_every == 0) or (b == num_batches-1):
+            output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)[:out_length]])
+            print("sample output : \"{}\"\n".format(output))
+            x = np.tile(encoder[" "], (batch_size,1))
+            trajectory = []
+            for xx in range(out_length):
+                feed={input_data:x, initial_state:state}
+                prob, state = sess.run([probs,final_state], feed)
+                sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
+                x=np.tile(sample, (batch_size,1))
+                trajectory.append(decoder[sample])
+            print("autonomous output: \"{}\"\n".format("".join(trajectory)))
+            state = sess.run(initial_state)
