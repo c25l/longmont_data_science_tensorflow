@@ -20,6 +20,7 @@ This example was chosen because, broadly, everyone is familiar with text and wha
 3. Add dropout to the dense nodes.
 4. Implement saving and restoring of the model.
 4. Use more data and see the effect of the variety on the accuracy and output.
+4. Train in epochs with decaying learning rate.
 4. Implement and see the effect of gradient clipping.
 5. Change the number of layers or the number of nodes and see the effect on training.
 6. Modify the embedding layer to layers, or by moving the number of nodes around.
