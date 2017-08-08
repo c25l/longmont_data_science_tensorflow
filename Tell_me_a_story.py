@@ -11,10 +11,11 @@ import re
 nodes_per_layer = 150
 dropout=0.01
 layers = 2
-batch_size = 60
-num_batches = 1000
-num_epochs = 10
-seq_length = 35
+batch_size = 100
+num_batches = 5000
+output_every = 1000
+num_epochs = 100
+seq_length = 50
 out_length = 200
 learning_rate = 1e-3
 decay_rate = 0.98
@@ -87,22 +88,15 @@ with tf.Session() as sess:
             _, summary, state, lossval, thoughts= sess.run([train_op, summaries, final_state, loss, preds], feed)
             sessions.set_postfix(loss=float(lossval))
             writer.add_summary(summary, b)
-            if (b % (num_batches//10) == 0) or (b == num_batches-1):
+            if (b % output_every == 0) or (b == num_batches-1):
                 output = "".join([decoder[x] for x in np.argmax(thoughts, axis=-1).reshape(-1)[:out_length]])
                 print("sample output : \"{}\"\n".format(output))
                 x = np.tile(encoder[" "], (batch_size,1))
                 trajectory = []
-                usesample = -1
                 for xx in range(out_length):
                     feed={input_data:x, initial_state:state}
                     prob, state = sess.run([probs,final_state], feed)
-                    sample = np.argmax(prob[0,0])
-                    if ((sample == encoder[" "]) or (sample==encoder["\n"])
-                    or (usesample>0)or (sample==usesample)):
-                        usesample=-1
-                        sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
-                        if (sample == encoder[" "]) or (sample == encoder["\n"]):
-                            usesample=sample
+                    sample = np.random.choice(np.arange(prob.shape[-1]), p=prob[0,0])
                     x=np.tile(sample, (batch_size,1))
                     trajectory.append(decoder[sample])
                 print("autonomous output: \"{}\"\n".format("".join(trajectory)))
